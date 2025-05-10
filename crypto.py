@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-import re
 from binascii import unhexlify, hexlify
 from Crypto.Cipher import AES
 from Crypto.Hash import CMAC
