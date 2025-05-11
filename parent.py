@@ -20,7 +20,7 @@ def process_request():
     data=""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect(('localhost', PORT))
+            s.connect(('127.0.0.1', PORT))
             s.sendall(bytes(json_body, 'utf-8'))
             print(f"Sent:\n {json_body}")
             data = s.recv(1024)
@@ -35,4 +35,4 @@ def process_request():
     return jsonify(json.loads(data.decode()))
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    app.run(debug=True)

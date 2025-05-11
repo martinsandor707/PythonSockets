@@ -6,7 +6,7 @@ from Crypto.Cipher import AES #pip install pycryptodome
 from Crypto.Hash import CMAC
 
 PORT = 12345
-key = "00000000000000000000000000000000"
+key = "00000000000000000000000000000000" # This is the placeholder key to be pushed to GitHub, change it in production
 
 def calculate_cmac_hex(key_hex: str, data_hex: str) -> str:
 
@@ -96,7 +96,7 @@ def handle_client(client_socket, addr):
 
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-    server_socket.bind(('localhost', PORT))
+    server_socket.bind(('0.0.0.0', PORT))
     server_socket.listen()
     print(f"Server listening on port {PORT}...")
 
