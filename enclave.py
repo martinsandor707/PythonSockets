@@ -6,7 +6,9 @@ from Crypto.Cipher import AES #pip install pycryptodome
 from Crypto.Hash import CMAC
 
 PORT = 12345
-key = "00000000000000000000000000000000" # This is the placeholder key to be pushed to GitHub, change it in production
+VMADDR_CID_ANY = None
+#VMADDR_CID_ANY = 0xFFFFFFFF
+key = "00000000000000000000000000000000" # This is the placeholder key to be pushed to GitHub, we will use AWS KMS to get the real key
 
 def calculate_cmac_hex(key_hex: str, data_hex: str) -> str:
 
@@ -95,14 +97,28 @@ def handle_client(client_socket, addr):
             client_socket.sendall(json.dumps(response).encode())
 
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-    server_socket.bind(('0.0.0.0', PORT))
-    server_socket.listen()
-    print(f"Server listening on port {PORT}...")
+if VMADDR_CID_ANY is None: #Testing without enclave
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+        server_socket.bind(('0.0.0.0', PORT))
+        server_socket.listen()
+        print(f"Server listening on port {PORT}...")
 
-    while True:
-        client_socket, addr = server_socket.accept()
-        # Start a new thread for each client
-        client_thread = threading.Thread(target=handle_client, args=(client_socket, addr))
-        client_thread.start()
-        print(f"Started thread for {addr}")
+        while True:
+            client_socket, addr = server_socket.accept()
+            # Start a new thread for each client
+            client_thread = threading.Thread(target=handle_client, args=(client_socket, addr))
+            client_thread.start()
+            print(f"Started thread for {addr}")
+
+else: #Real enclave
+    with socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM) as server_socket:
+        server_socket.bind((VMADDR_CID_ANY, PORT))
+        server_socket.listen()
+        print(f"Enclave listening on port {PORT}...")
+
+        while True:
+            client_socket, addr = server_socket.accept()
+            # Start a new thread for each client
+            client_thread = threading.Thread(target=handle_client, args=(client_socket, addr))
+            client_thread.start()
+            print(f"Started thread for {addr}")

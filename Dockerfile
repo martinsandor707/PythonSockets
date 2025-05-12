@@ -1,6 +1,5 @@
-# Use official Python 3.12 image
-FROM python:3.12-slim
-
+# Use Amazon Linux 2 as base image
+FROM amazonlinux:2
 # Set working directory
 WORKDIR /app
 
@@ -8,7 +7,10 @@ WORKDIR /app
 COPY enclave.py .
 
 # Install dependencies
-RUN pip install --no-cache-dir pycryptodome
+RUN yum update -y && \
+    yum install -y python3 python3-pip && \
+    python3 -m pip install --no-cache-dir pycryptodome && \
+    yum clean all
 
 # Expose socket port
 EXPOSE 12345
