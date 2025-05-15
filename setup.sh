@@ -19,13 +19,12 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-cat <<EOF2 > /etc/systemd/system/ec2parent.service
+sudo cat <<EOF2 > /etc/systemd/system/ec2parent.service
 [Unit]
 Description=Gunicorn instance for a simple flask app
 After=network.target
 [Service]
 User=ec2-user
-Group=www-data
 WorkingDirectory=/home/ec2-user/PythonSockets
 ExecStart=/home/ec2-user/PythonSockets/venv/bin/gunicorn -b localhost:5000 parent:app
 Restart=always
@@ -34,7 +33,7 @@ WantedBy=multi-user.target
 EOF2
 
 sudo yum install -y nginx
-cat <<EOF2 > /etc/nginx/conf.d/default
+cat <<EOF2 > /etc/nginx/conf.d/default.conf
 upstream flask_app {
     server 127.0.0.1:5000;
 }
