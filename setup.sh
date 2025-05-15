@@ -2,10 +2,18 @@
 
 set +x
 set -e
-sudo amazon-linux-extras enable python3.8
-sudo yum install -y python3.8
-python3.8 -m ensurepip --upgrade
-python3.8 -m venv venv
+sudo yum groupinstall "Development Tools" -y
+sudo yum install gcc openssl-devel bzip2-devel libffi-devel wget make zlib-devel -y
+cd /usr/src
+sudo wget https://www.python.org/ftp/python/3.12.3/Python-3.12.3.tgz
+sudo tar xzf Python-3.12.3.tgz
+cd Python-3.12.3
+sudo ./configure --enable-optimizations
+sudo make altinstall
+python3.12 --version
+python3.12 -m ensurepip --upgrade
+cd /home/ec2-user/PythonSockets
+python3.12 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
