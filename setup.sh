@@ -2,18 +2,20 @@
 
 set +x
 set -e
-sudo yum groupinstall "Development Tools" -y
-sudo yum install gcc openssl-devel bzip2-devel libffi-devel wget make zlib-devel -y
-cd /usr/src
-sudo wget https://www.python.org/ftp/python/3.12.3/Python-3.12.3.tgz
-sudo tar xzf Python-3.12.3.tgz
-cd Python-3.12.3
-sudo ./configure --enable-optimizations
-sudo make altinstall
-python3.12 --version
-python3.12 -m ensurepip --upgrade
+sudo yum install -y aws-nitro-enclaves-cli aws-nitro-enclaves-cli-devel jq
+sudo usermod -aG ne ec2-user
+sudo usermod -aG docker ec2-user
+# Give the ne group access to /dev/vsock
+echo 'KERNEL=="vsock", MODE="660", GROUP="ne"' | sudo tee /etc/udev/rules.d/51-vsock.rules
+sudo udevadm control --reload
+sudo udevadm trigger
+sudo systemctl start nitro-enclaves-allocator.service
+sudo systemctl enable nitro-enclaves-allocator.service
+sudo systemctl start docker
+sudo systemctl enable docker
+python3 -m ensurepip --upgrade
 cd /home/ec2-user/PythonSockets
-python3.12 -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
@@ -75,15 +77,6 @@ You should use a proper certificate from a trusted CA.
 You can use Let's Encrypt for free certificates.
 You can use certbot to get a certificate from Let's Encrypt.
 (Buying a domain is not free though, you have to pay for that)
-
-LASTLY: You need to install docker to run the enclaves. Look up enclave docs for more info.
 EOF2
 
-sudo amazon-linux-extras enable docker
-sudo yum install -y docker
-sudo usermod -aG docker ec2-user
-newgrp docker
-sudo systemctl start docker
-sudo systemctl enable docker
-docker --version
 echo -e "If all looks good, run the following commands to get docker in working order:\ndocker build -t test_enclave . \ndocker run -d --name test_enclave -p 12345:12345 test_enclave\n"
