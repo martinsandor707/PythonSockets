@@ -1,5 +1,5 @@
-# Use Amazon Linux 2 as base image
-FROM amazonlinux:2
+# TODO: Rewrite package manager to be alpine compatible
+FROM python:3.7.9-alpine3.12
 # Set working directory
 WORKDIR /app
 
@@ -7,10 +7,10 @@ WORKDIR /app
 COPY enclave.py .
 
 # Install dependencies
-RUN yum update -y && \
-    yum install -y python3 python3-pip && \
-    python3 -m pip install --no-cache-dir pycryptodome && \
-    yum clean all
+RUN apk add --no-cache --virtual .build-deps \
+    gcc musl-dev libffi-dev python3-dev \
+    && pip install --no-cache-dir pycryptodome \
+    && apk del .build-deps
 
 # Expose socket port
 EXPOSE 12345
