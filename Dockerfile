@@ -1,7 +1,5 @@
 # TODO: Rewrite package manager to be alpine compatible
 FROM python:3.7.9-alpine3.12
-# Set working directory
-WORKDIR /app
 
 # Copy file into container
 COPY enclave.py .
@@ -16,5 +14,5 @@ RUN apk add --no-cache --virtual .build-deps \
 EXPOSE 12345
 
 # Run the Python script
-CMD ["python3", "enclave.py"]
+CMD ["/usr/local/bin/python3", "enclave.py"]
 
