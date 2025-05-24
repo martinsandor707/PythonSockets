@@ -13,6 +13,6 @@ RUN apk add --no-cache --virtual .build-deps \
 # Expose socket port
 EXPOSE 12345
 
-# Run the Python script
+# ABSOLUTELY DO NOT CHANGE THIS LINE, THE ENCLAVE WILL NOT WORK IF YOU DO
 CMD ["/usr/local/bin/python3", "enclave.py"]
 
