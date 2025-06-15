@@ -2,7 +2,9 @@
 set +x
 set -e
 
-# This script is used to create a hello world enclave application using the hello app located at /usr/share/nitro_enclaves/examples/hello
+# This script is used to create and run a Nitro Enclave using Docker.
+# It assumes that the Nitro Enclaves CLI and Docker are already installed and configured.
+# It also assumes that the user has the necessary permissions to run Docker and Nitro Enclaves commands.
 
 docker build -t enclave-test .
 nitro-cli build-enclave --docker-uri enclave-test:latest --output-file enclave-test.eif
