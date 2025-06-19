@@ -1,77 +1,49 @@
 import socket
-import ssl
+import base64
 import json
-from botocore.awsrequest import AWSRequest
-from botocore.credentials import InstanceMetadataProvider, InstanceMetadataFetcher
-from botocore.auth import SigV4Auth
 
-# Constants
 VSOCK_HOST_CID = 3
 VSOCK_PORT = 8000
-REGION = "eu-central-1"
-DYNAMODB_ENDPOINT = f"https://dynamodb.{REGION}.amazonaws.com"
+# ciphertextBlob must be base64 encoded encrypted data to decrypt
+ciphertext_blob_b64 = "BASE64_ENCRYPTED_DATA_HERE"
 
-def create_vsock_ssl_connection():
-    """Establish TLS-over-vsock connection to the host"""
-    vsock = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
-    vsock.connect((VSOCK_HOST_CID, VSOCK_PORT))
-    context = ssl.create_default_context()
-    return context.wrap_socket(vsock, server_hostname=f"dynamodb.{REGION}.amazonaws.com")
+def get_attestation_doc():
+    with open("/dev/attestation", "rb") as f:
+        return base64.b64encode(f.read()).decode()
 
-def get_aws_credentials():
-    provider = InstanceMetadataProvider(
-        iam_role_fetcher=InstanceMetadataFetcher(timeout=1000, num_attempts=2)
-    )
-    return provider.load()
+def decrypt_with_kms(attestation_doc, ciphertext_blob):
+    payload = {
+        "attestationDocument": attestation_doc,
+        "ciphertextBlob": ciphertext_blob,
+        # Include encryptionContext here if used in encryption
+        "encryptionContext": {}
+    }
+
+    request_bytes = json.dumps(payload).encode()
+
+    with socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM) as sock:
+        sock.connect((VSOCK_HOST_CID, VSOCK_PORT))
+        sock.sendall(request_bytes)
+
+        response_bytes = b""
+        while True:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            response_bytes += chunk
+
+    return json.loads(response_bytes.decode())
 
 def main():
-    credentials = get_aws_credentials()
+    att_doc = get_attestation_doc()
+    response = decrypt_with_kms(att_doc, ciphertext_blob_b64)
 
-    # Example GetItem request body
-    request_payload = {
-        "TableName": "wine-table",
-        "Key": {
-            "ID": {
-                "S": "0"
-            }
-        }
-    }
-
-    headers = {
-        "Content-Type": "application/x-amz-json-1.0",
-        "X-Amz-Target": "DynamoDB_20120810.GetItem"
-    }
-
-    request = AWSRequest(
-        method="POST",
-        url=DYNAMODB_ENDPOINT,
-        data=json.dumps(request_payload),
-        headers=headers
-    )
-
-    SigV4Auth(credentials, "dynamodb", REGION).add_auth(request)
-    prepared = request.prepare()
-
-    conn = create_vsock_ssl_connection()
-    http_request = (
-        f"{prepared.method} / HTTP/1.1\r\n"
-        f"Host: dynamodb.{REGION}.amazonaws.com\r\n" +
-        ''.join(f"{k}: {v}\r\n" for k, v in prepared.headers.items()) +
-        "\r\n" +
-        (prepared.body or "")
-    )
-
-    conn.sendall(http_request.encode())
-    response = b""
-    while True:
-        chunk = conn.recv(4096)
-        if not chunk:
-            break
-        response += chunk
-
-    print("DynamoDB Response:\n")
-    print(response.decode())
-    conn.close()
+    plaintext_b64 = response.get("Plaintext")
+    if plaintext_b64:
+        plaintext = base64.b64decode(plaintext_b64)
+        print("Decrypted plaintext (bytes):", plaintext)
+    else:
+        print("No plaintext in response:", response)
 
 if __name__ == "__main__":
     main()

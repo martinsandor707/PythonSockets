@@ -1,19 +1,26 @@
 # TODO: Rewrite package manager to be alpine compatible
-FROM python:3.7.9-alpine3.12
-
+FROM amazonlinux:2
 # Copy file into container
-COPY enclave.py .
+WORKDIR /app
+
+COPY enclave.py ./
+# COPY traffic_forwarder.py ./
+COPY run_inside_docker.sh ./
+COPY kmstool_enclave_cli ./
+COPY libnsm.so ./
+
+ENV AWS_STS_REGIONAL_ENDPOINTS=regional
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/app
 
 # Install dependencies
-RUN apk add --no-cache --virtual .build-deps \
-    gcc musl-dev libffi-dev python3-dev \
-    && pip install --no-cache-dir pycryptodome \
-    && pip install --no-cache-dir boto3 \
-    && apk del .build-deps
+RUN yum update -y \
+    && yum install -y iproute gcc python3 python3-devel libffi-devel \
+    && python3 -m pip install --no-cache-dir pycryptodome boto3 \
+    && yum clean all
 
 # Expose socket port
 EXPOSE 12345
 
-# ABSOLUTELY DO NOT CHANGE THIS LINE, THE ENCLAVE WILL NOT WORK IF YOU DO
-CMD ["/usr/local/bin/python3", "enclave.py"]
+RUN chmod +x run_inside_docker.sh
 
+CMD [ "/app/run_inside_docker.sh" ]

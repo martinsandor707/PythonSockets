@@ -2,16 +2,66 @@ import socket
 import threading
 import json
 import base64
+import subprocess
 import boto3
 from binascii import unhexlify, hexlify
 from Crypto.Cipher import AES #pip install pycryptodome
 from Crypto.Hash import CMAC
 
-PORT = 12345
+SERVER_PORT = 12345
+KMS_PROXY_PORT = 8001
 key = "00000000000000000000000000000000" # This is the placeholder key to be pushed to GitHub, we will use AWS KMS to get the real key
 
+def get_plaintext(credentials):
+    """
+    prepare inputs and invoke decrypt function
+    """
+
+    # take all data from client
+    access = credentials['access_key_id']
+    secret = credentials['secret_access_key']
+    token = credentials['token']
+    ciphertext= credentials['ciphertext']
+    region = credentials['region']
+    creds = decrypt_cipher(access, secret, token, ciphertext, region)
+    return creds
+
+def decrypt_cipher(access, secret, token, ciphertext, region):
+    """
+    use KMS Tool Enclave Cli to decrypt cipher text
+    Look at https://github.com/aws/aws-nitro-enclaves-sdk-c/blob/main/bin/kmstool-enclave-cli/README.md
+    for more info.
+    """
+    proc = subprocess.Popen(
+    [
+        "/app/kmstool_enclave_cli",
+        "decrypt",
+        "--region", region,
+        "--proxy-port", str(KMS_PROXY_PORT),
+        "--aws-access-key-id", access,
+        "--aws-secret-access-key", secret,
+        "--aws-session-token", token,
+        "--ciphertext", ciphertext,
+        "--key-id", "alias/wine-encryption-key", #TODO: Check if kmstool supports key aliases. Otherwise need to hardcode key ID (Should be good tbh)
+        "--encryption-algorithm", "RSAES_OAEP_SHA_256" # Must match key spec
+    ],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE
+)
+
+    ret = proc.communicate()
+
+    if ret[0]:
+        ret0 = proc.communicate()[0].decode()
+        b64text = ret0.split(":")[1]
+        plaintext = base64.b64decode(b64text).decode('utf-8')
+        return plaintext
+    else:
+        return "KMS Error. Decryption Failed." + str(ret) #returning the full error stack when something fails
+
+
 key_alias = 'alias/wine-encryption-key'
-kms = boto3.client('kms')
+kms = boto3.client('kms', region_name='eu-central-1')  # Adjust region as necessary
 
 def kms_decrypt(ciphertext: str) -> str:
     try:
@@ -78,9 +128,10 @@ def handle_client(client_socket, addr):
             s= message['s']
             e= message['e']
             c= message['c']
-            secret = message['secret'] if 'secret' in message else None
+            secret = message['ciphertext'] if 'ciphertext' in message else None
+            plaintext = None
             if secret:
-                secret = kms_decrypt(secret) 
+                plaintext = get_plaintext(message)
 
             encrypted_data = bytes.fromhex(e)
             cipher = AES.new(bytes.fromhex(key), AES.MODE_ECB)
@@ -112,16 +163,17 @@ def handle_client(client_socket, addr):
                 "c": c,
                 "verify": MAC == c,
                 "tamperstatus": status,
-                "secret": secret if secret else None
+                "ciphertext": secret if secret else None,
+                "plaintext": plaintext if plaintext else None,
             }
 
             client_socket.sendall(json.dumps(response).encode())
 
 
 with socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM) as server_socket:
-    server_socket.bind((socket.VMADDR_CID_ANY, PORT))
+    server_socket.bind((socket.VMADDR_CID_ANY, SERVER_PORT))
     server_socket.listen()
-    print(f"Enclave listening on port {PORT}...")
+    print(f"Enclave listening on port {SERVER_PORT}...")
 
     while True:
         client_socket, addr = server_socket.accept()
