@@ -1,12 +1,31 @@
 import socket
 import threading
 import json
+import base64
+import boto3
 from binascii import unhexlify, hexlify
 from Crypto.Cipher import AES #pip install pycryptodome
 from Crypto.Hash import CMAC
 
 PORT = 12345
 key = "00000000000000000000000000000000" # This is the placeholder key to be pushed to GitHub, we will use AWS KMS to get the real key
+
+key_alias = 'alias/wine-encryption-key'
+kms = boto3.client('kms')
+
+def kms_decrypt(ciphertext: str) -> str:
+    try:
+        ciphertext = base64.b64decode(ciphertext)
+        response = kms.decrypt(
+            KeyId=key_alias,
+            CiphertextBlob=ciphertext,
+            EncryptionAlgorithm='RSAES_OAEP_SHA_256'  # Must match key spec
+        )
+        return response['Plaintext'].decode() if 'Plaintext' in response else None
+    except Exception as e:
+        print(f"Error decrypting with KMS: {e}")
+        return None
+
 
 def calculate_cmac_hex(key_hex: str, data_hex: str) -> str:
 
@@ -59,6 +78,9 @@ def handle_client(client_socket, addr):
             s= message['s']
             e= message['e']
             c= message['c']
+            secret = message['secret'] if 'secret' in message else None
+            if secret:
+                secret = kms_decrypt(secret) 
 
             encrypted_data = bytes.fromhex(e)
             cipher = AES.new(bytes.fromhex(key), AES.MODE_ECB)
@@ -89,7 +111,8 @@ def handle_client(client_socket, addr):
                 "e": e,
                 "c": c,
                 "verify": MAC == c,
-                "tamperstatus": status
+                "tamperstatus": status,
+                "secret": secret if secret else None
             }
 
             client_socket.sendall(json.dumps(response).encode())

@@ -8,6 +8,7 @@ COPY enclave.py .
 RUN apk add --no-cache --virtual .build-deps \
     gcc musl-dev libffi-dev python3-dev \
     && pip install --no-cache-dir pycryptodome \
+    && pip install --no-cache-dir boto3 \
     && apk del .build-deps
 
 # Expose socket port

@@ -1,4 +1,7 @@
 from flask import Flask, request, jsonify
+import base64
+from boto3.dynamodb.conditions import Key
+import boto3
 import json
 import socket
 import subprocess
@@ -19,13 +22,24 @@ def get_enclave_cid():
 app = Flask(__name__)
 @app.route('/verify', methods=['GET'])
 def process_request():
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table('wine-table')
+    response = table.query(KeyConditionExpression=Key('ID').eq('1'))
+    response_key = response['Items'][0]['Key']
+    if not response_key:
+        print("Inserted item not found in DynamoDB.")
+        print(response_key)
+
+    # response_decoded = base64.b64decode(response_key).decode()
+    print(f"Response decoded: {response_key}")
     s = request.args.get('s')
     e = request.args.get('e')
     c = request.args.get('c')
     json_body = {
         "s": s,
         "e": e,
-        "c": c
+        "c": c,
+        "secret": response_key
     }
     json_body = json.dumps(json_body)
     print(f"Original request:\n {json_body}")
